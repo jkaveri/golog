@@ -53,7 +53,7 @@ func RegisterEnricher(enricher Enricher) {
 }
 
 // With creates a new LogScope with a single key-value field.
-// It is a convenience function for creating a scope with a single field.
+// LogScope is not thread-safe; create a new scope per goroutine.
 func With(key string, value any) *LogScope {
 	return newScope().With(key, value)
 }
@@ -64,8 +64,9 @@ func WithFields(fields map[string]any) *LogScope {
 	return newScope().WithFields(fields)
 }
 
-// WithPairs creates a new LogScope with multiple fields.
-// It is a convenience function for creating a scope with multiple fields at once.
+// WithPairs creates a new LogScope with multiple fields from alternating key-value pairs.
+// Args must be an even number: key1, value1, key2, value2, ...
+// Panics if args has odd length or if any key is not a string.
 func WithPairs(args ...any) *LogScope {
 	if len(args)%2 != 0 {
 		panic("pairs must have even number of arguments")
@@ -97,19 +98,19 @@ func WithError(err error) *LogScope {
 }
 
 // Debug logs a message at the debug level.
-// It creates a new scope and writes the message with the DEBUG level.
+// Args are passed to fmt.Sprintf for message formatting.
 func Debug(msg string, args ...any) {
 	newScope().Debug(msg, args...)
 }
 
 // Info logs a message at the info level.
-// It creates a new scope and writes the message with the INFO level.
+// Args are passed to fmt.Sprintf for message formatting.
 func Info(msg string, args ...any) {
 	newScope().Info(msg, args...)
 }
 
-// Error logs a message at the error level.
-// It creates a new scope and writes the message with the ERROR level.
+// Error logs a message at the error level and returns an error for propagation.
+// Args are passed to fmt.Sprintf for message formatting.
 func Error(msg string, args ...any) error {
 	return newScope().Error(msg, args...)
 }
@@ -120,8 +121,17 @@ func Flush() {
 	instance.Flush()
 }
 
+// skipFrames is the number of frames to skip when logging.
+// This is useful for logging from functions that are called by other functions.
 var skipFrames = 1
 
+// SetSkipFrames sets the number of frames to skip when logging.
+// This is useful for logging from functions that are called by other functions.
 func SetSkipFrames(skip int) {
 	skipFrames = skip
+}
+
+// GetSkipFrames returns the number of frames to skip when logging.
+func GetSkipFrames() int {
+	return skipFrames
 }

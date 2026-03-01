@@ -2,6 +2,26 @@
 
 A clean and consistent logging interface for Go applications that provides structured logging capabilities with a simple and intuitive API.
 
+## Table of Contents
+
+- [Features](#features)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Interfaces](#interfaces)
+- [Advanced Usage](#advanced-usage)
+- [Configuration](#configuration)
+- [Unsupported Types](#unsupported-types)
+- [Best Practices](#best-practices)
+- [API Reference](#api-reference)
+- [Common Pitfalls](#common-pitfalls)
+- [Contributing](#contributing)
+- [License](#license)
+
+## Requirements
+
+- Go 1.18+
+- Dependencies: [bytedance/sonic](https://github.com/bytedance/sonic), [pkg/errors](https://github.com/pkg/errors)
+
 ## Features
 
 - Simple and clean interface for logging
@@ -14,7 +34,7 @@ A clean and consistent logging interface for Go applications that provides struc
 - JSON logger implementation for machine-readable logs
 - Automatic file and line information in logs
 - Support for log levels configuration
-- Thread-safe logging operations
+- Thread-safe writer implementations
 - Performance optimized for high-throughput applications
 
 
@@ -33,21 +53,20 @@ import "github.com/jkaveri/golog"
 
 func main() {
     // Simple logging
-    golog.With().Info("Application started")
-    // Output: main.go:42 [INFO][2024-03-30T12:34:56Z] Application started
+    golog.Info("Application started")
+    // Output: main.go:N [INFO][2024-03-30T12:34:56Z] Application started
 
     // Logging with fields
-    golog.With().
-        With("user_id", 123).
+    golog.With("user_id", 123).
         With("username", "john_doe").
         Info("User logged in")
-    // Output: main.go:45 [INFO][2024-03-30T12:34:56Z] User logged in user_id="123" username="john_doe"
+    // Output: main.go:N [INFO][2024-03-30T12:34:56Z] User logged in user_id="123" username="john_doe"
 
     // Logging with error
     err := someOperation()
     if err != nil {
         golog.WithError(err).Error("Operation failed")
-        // Output: main.go:50 [ERROR][2024-03-30T12:34:56Z] Operation failed error="operation failed: invalid input"
+        // Output: main.go:N [ERROR][2024-03-30T12:34:56Z] Operation failed error="operation failed: invalid input"
     }
 }
 ```
@@ -72,13 +91,12 @@ func main() {
     golog.SetWriter(jsonLogger)
 
     // Now all logs will be in JSON format
-    golog.With().
-        With("version", "1.0.0").
+    golog.With("version", "1.0.0").
         With("environment", "production").
         Info("Application started")
 
     // Output will look like:
-    // {"time":"2024-03-30T12:34:56Z","level":"INFO","msg":"Application started","version":"1.0.0","environment":"production","caller":"main.go:42"}\n
+    // {"time":"2024-03-30T12:34:56Z","level":"INFO","msg":"Application started","version":"1.0.0","environment":"production","caller":"main.go:N"}\n
 }
 ```
 
@@ -135,9 +153,7 @@ func handleRequest(ctx context.Context, req *http.Request) {
     scope.Info("Processing request")
 
     // Additional fields can be added to specific log lines
-    scope.Debug("Request details",
-        golog.With("user_agent", req.UserAgent()),
-    )
+    scope.With("user_agent", req.UserAgent()).Debug("Request details")
 
     // Nested scopes inherit parent fields
     userScope := scope.With("user_id", 123)
@@ -158,21 +174,14 @@ func NewCustomWriter(writer io.Writer) *CustomWriter {
     return &CustomWriter{writer: writer}
 }
 
-func (w *CustomWriter) Write(level string, msg string, fields map[string]any) {
-    // Add custom formatting
+func (w *CustomWriter) Write(level int, msg string, fields map[string]any) {
     timestamp := time.Now().Format(time.RFC3339)
-    logLine := fmt.Sprintf("[%s] %s: %s", timestamp, level, msg)
+    levelStr := golog.LevelString(level)
+    logLine := fmt.Sprintf("[%s] %s: %s", timestamp, levelStr, msg)
 
-    // Add fields
     for k, v := range fields {
         logLine += fmt.Sprintf(" %s=%v", k, v)
     }
-
-    // Add file and line information
-    if file, line, ok := getCallerInfo(); ok {
-        logLine += fmt.Sprintf(" file=%s line=%d", file, line)
-    }
-
     logLine += "\n"
 
     w.writer.Write([]byte(logLine))
@@ -184,40 +193,36 @@ func (w *CustomWriter) Flush() {
 
 // Usage
 func main() {
-    // Create a custom writer that writes to stdout
     writer := NewCustomWriter(os.Stdout)
-
-    // Set it as the default writer
     golog.SetWriter(writer)
 
-    // Now all logs will use your custom format
-    golog.Info("Application started",
-        golog.With("version", "1.0.0"),
-    )
+    golog.With("version", "1.0.0").Info("Application started")
 }
 ```
 
 ### Log Enrichment
 
-You can enrich your logs with additional context using the `Enricher` interface.
+You can enrich your logs with additional context using the `Enricher` interface and `RegisterEnricher`. Enrichers are applied globally to all log entries.
 
 ```go
-type RequestEnricher struct {
-    requestID string
-}
+import (
+    "context"
+    "github.com/jkaveri/golog"
+)
 
-func (e *RequestEnricher) Enrich(fields map[string]any) {
-    fields["request_id"] = e.requestID
-    fields["timestamp"] = time.Now().Unix()
+// Register at startup (e.g., in main or init)
+func init() {
+    golog.RegisterEnricher(golog.EnricherFunc(func(ctx context.Context, level, msg string, fields map[string]any) {
+        if id := ctx.Value("request_id"); id != nil {
+            fields["request_id"] = id
+        }
+    }))
 }
 
 // Usage
 func handleRequest(w http.ResponseWriter, r *http.Request) {
-    requestID := r.Header.Get("X-Request-ID")
-    enricher := &RequestEnricher{requestID: requestID}
-
-    scope := golog.WithEnricher(enricher)
-    scope.Info("Processing request")
+    ctx := context.WithValue(r.Context(), "request_id", r.Header.Get("X-Request-ID"))
+    golog.WithContext(ctx).Info("Processing request")
 }
 ```
 
@@ -254,13 +259,18 @@ You can configure the minimum log level to control which messages are logged.
 
 ```go
 // Set minimum log level to Debug
-golog.SetLevel(golog.DebugLevel)
+golog.SetLevel(golog.LevelDebug)
 
 // Set minimum log level to Info (default)
-golog.SetLevel(golog.InfoLevel)
+golog.SetLevel(golog.LevelInfo)
 
 // Set minimum log level to Error
-golog.SetLevel(golog.ErrorLevel)
+golog.SetLevel(golog.LevelError)
+
+// Parse level from string (e.g., from environment variable)
+if level := golog.ParseLevel(os.Getenv("LOG_LEVEL")); level >= 0 {
+    golog.SetLevel(level)
+}
 ```
 
 ### Output Configuration
@@ -339,34 +349,42 @@ func main() {
 
 ### Functions
 
-- `golog.Debug(msg string, args ...any)` - Log a debug message with optional fields
-- `golog.Info(msg string, args ...any)` - Log an info message with optional fields
-- `golog.Error(msg string, args ...any)` - Log an error message with optional fields
+- `golog.Debug(msg string, args ...any)` - Log a debug message; args are passed to fmt.Sprintf
+- `golog.Info(msg string, args ...any)` - Log an info message; args are passed to fmt.Sprintf
+- `golog.Error(msg string, args ...any) error` - Log an error message and return an error for propagation
 - `golog.With(key string, value any) *LogScope` - Create a new scope with a field
 - `golog.WithFields(fields map[string]any) *LogScope` - Create a new scope with multiple fields
+- `golog.WithPairs(args ...any) *LogScope` - Create a scope from alternating key-value pairs (panics if odd length or non-string keys)
 - `golog.WithContext(ctx context.Context) *LogScope` - Create a new scope with context
 - `golog.WithError(err error) *LogScope` - Create a new scope with error
-- `golog.WithEnricher(enricher Enricher) *LogScope` - Create a new scope with an enricher
+- `golog.RegisterEnricher(enricher Enricher)` - Register a global enricher
 - `golog.SetWriter(writer LogWriter)` - Set a custom logger implementation
-- `golog.SetLevel(level LogLevel)` - Set the minimum log level
+- `golog.SetLevel(level int)` - Set the minimum log level (use LevelDebug, LevelInfo, LevelError)
+- `golog.ParseLevel(level string) int` - Parse level from string; returns -1 if invalid
+- `golog.LevelString(level int) string` - Convert level int to string
 - `golog.Flush()` - Flush any buffered logs
 
 ### Types
 
 - `golog.LogWriter` - Interface for logger implementations
-- `golog.LogScope` - Represents a logging scope with propagated fields
+- `golog.LogScope` - Represents a logging scope with propagated fields (not thread-safe)
 - `golog.Enricher` - Interface for log enrichment
-- `golog.LogLevel` - Enum for log levels
+- `golog.EnricherFunc` - Function type implementing Enricher
 
-> **Note**: When using fields in logging, certain Go types are not supported and will cause a panic:
-> - Complex numbers (`complex64`, `complex128`)
-> - Channels
-> - Other unsupported types will cause a panic
+### Level Constants
+
+- `golog.LevelDebug` (0), `golog.LevelInfo` (1), `golog.LevelError` (2)
 
 ### Implementations
 
-- `golog.NewDefaulWriter(writer io.Writer) *defaultWriter` - Creates a default text-based logger
+- `golog.NewDefaultWriter(writer io.Writer) *defaultWriter` - Creates a default text-based logger
 - `golog.NewJSONWriter(writer io.Writer) *jsonWriter` - Creates a JSON logger
+
+### Common Pitfalls
+
+- **Unsupported types**: Complex numbers, channels, and functions in fields cause a panic. Use `json:"-"` on struct fields or avoid these types.
+- **WithPairs**: Must have an even number of arguments; keys must be strings. Panics otherwise.
+- **Thread safety**: LogScope is not thread-safe; create a new scope per goroutine.
 
 ## Contributing
 

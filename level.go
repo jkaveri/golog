@@ -2,11 +2,12 @@ package golog
 
 import "strings"
 
-// Log levels
+// Log level constants. Lower values are less severe; only messages with
+// level >= the minimum (set via SetLevel) are logged.
 const (
-	LevelDebug = iota // 0
-	LevelInfo         // 1
-	LevelError        // 2
+	LevelDebug = iota // 0 - detailed debugging information
+	LevelInfo         // 1 - general operational information (default minimum)
+	LevelError        // 2 - error conditions
 )
 
 // levelNames maps level integers to their string representations
@@ -27,7 +28,7 @@ var levelValues = map[string]int{
 var minLevel = LevelInfo
 
 // ParseLevel converts a string level name to its integer value.
-// The parsing is case-insensitive.
+// The parsing is case-insensitive (e.g., "debug", "DEBUG", "Debug" all map to LevelDebug).
 // Returns -1 if the level name is invalid.
 func ParseLevel(level string) int {
 	// Convert to uppercase for case-insensitive comparison
@@ -49,7 +50,7 @@ func LevelString(level int) string {
 
 // SetLevel sets the minimum log level that should be logged.
 // Only messages with severity >= minLevel will be logged.
-// Valid levels are: DEBUG (0), INFO (1), ERROR (2)
+// Use LevelDebug, LevelInfo, or LevelError, or ParseLevel for string-based config.
 func SetLevel(level int) {
 	if _, ok := levelNames[level]; ok {
 		minLevel = level

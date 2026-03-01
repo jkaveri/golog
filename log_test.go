@@ -1,6 +1,10 @@
 package golog
 
 import (
+	"bytes"
+	"context"
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -163,4 +167,43 @@ func TestShouldLog(t *testing.T) {
 
 	// Restore original minLevel
 	minLevel = originalMinLevel
+}
+
+func ExampleParseLevel() {
+	fmt.Println(ParseLevel("debug"))
+	fmt.Println(ParseLevel("INFO"))
+	fmt.Println(ParseLevel("invalid"))
+	// Output:
+	// 0
+	// 1
+	// -1
+}
+
+func ExampleWithPairs() {
+	buf := &bytes.Buffer{}
+	oldWriter := instance
+	instance = NewDefaultWriter(buf)
+	defer func() { instance = oldWriter }()
+
+	WithPairs("user_id", 123, "action", "login").Info("User logged in")
+	instance.Flush()
+
+	output := buf.String()
+	if strings.Contains(output, "User logged in") && strings.Contains(output, "user_id") {
+		fmt.Println("ok")
+	}
+	// Output:
+	// ok
+}
+
+func ExampleEnricherFunc() {
+	// EnricherFunc allows using a function as an Enricher without defining a new type
+	enricher := EnricherFunc(func(ctx context.Context, level, msg string, fields map[string]any) {
+		fields["trace_id"] = "abc-123"
+	})
+	// Use with RegisterEnricher at startup
+	_ = enricher
+	fmt.Println("EnricherFunc registered")
+	// Output:
+	// EnricherFunc registered
 }
