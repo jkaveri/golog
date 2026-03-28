@@ -6,18 +6,22 @@ import (
 	"time"
 )
 
-// Value is a tagged union: it pairs a [Kind] with the underlying Go value in Value.any.
-// Use the typed helpers (e.g. [StringValue], [Int64Value], [AnyValue]) or read the kind
-// with [Value.Kind] and the payload with [Value.Any] / the type-specific accessors.
+// Value is a tagged union: it pairs a [Kind] with the underlying Go value in
+// Value.any. Use the typed helpers (e.g. [StringValue], [Int64Value],
+// [AnyValue]) or read the kind with [Value.Kind] and the payload with
+// [Value.Any] / the type-specific accessors.
 //
-// The zero Value is [KindAny] with a nil any payload, which represents “no value” / nil.
+// The zero Value is [KindAny] with a nil any payload, which represents “no
+// value” / nil.
 //
-// Do not compare Values with == or !=: equality of the struct does not match semantic
-// equality of the logged content, and comparing interface values can panic if the
+// Do not compare Values with == or !=: equality of the struct does not match
+// semantic equality of the logged content, and comparing interface values can
+// panic if the
 // dynamic types are not comparable. Use [Value.Equal] instead.
 //
-// The unnamed field exists for parity with [log/slog.Value] and documents that intent.
-// It is a zero-sized [0]func(); note that function types are comparable in Go, so this
+// The unnamed field exists for parity with [log/slog.Value] and documents that
+// intent. It is a zero-sized [0]func(); note that function types are comparable
+// in Go, so this
 // does not by itself make [Value] incomparable at compile time.
 type Value struct {
 	_    [0]func() // zero-width marker; see Value doc (discourage ==, use Equal)
@@ -25,7 +29,8 @@ type Value struct {
 	any  any
 }
 
-// Kind classifies the dynamic type stored in a [Value]. Inspect with [Value.Kind] before
+// Kind classifies the dynamic type stored in a [Value]. Inspect with
+// [Value.Kind] before
 // calling type-specific accessors ([Value.Int64], [Value.String], etc.).
 type Kind int
 
@@ -57,6 +62,7 @@ func (k Kind) String() string {
 	if k >= 0 && int(k) < len(kindStrings) {
 		return kindStrings[k]
 	}
+
 	return "<unknown Kind>"
 }
 
@@ -118,18 +124,22 @@ func GroupValue(as ...Attr) Value {
 				as2 = append(as2, a)
 			}
 		}
+
 		as = as2
 	}
+
 	return Value{kind: KindGroup, any: as}
 }
 
 func countEmptyGroups(as []Attr) int {
 	n := 0
+
 	for _, a := range as {
 		if a.Value.isEmptyGroup() {
 			n++
 		}
 	}
+
 	return n
 }
 
@@ -211,11 +221,13 @@ func (v Value) Any() any {
 // the methods Int64, Float64, and so on, which panic if v is of the
 // wrong kind, String never panics.
 //
-// Formatting matches the text representation used for attributes in [TextWriter].
+// Formatting matches the text representation used for attributes in
+// [TextWriter].
 func (v Value) String() string {
 	if v.Kind() == KindString {
 		return v.any.(string)
 	}
+
 	return string(formatTextAttr(Attr{Value: v}))
 }
 
@@ -229,6 +241,7 @@ func (v Value) Int64() int64 {
 	if g, w := v.Kind(), KindInt64; g != w {
 		panic(fmt.Sprintf("Value kind is %s, not %s", g, w))
 	}
+
 	return v.any.(int64)
 }
 
@@ -238,6 +251,7 @@ func (v Value) Uint64() uint64 {
 	if g, w := v.Kind(), KindUint64; g != w {
 		panic(fmt.Sprintf("Value kind is %s, not %s", g, w))
 	}
+
 	return v.any.(uint64)
 }
 
@@ -247,6 +261,7 @@ func (v Value) Bool() bool {
 	if g, w := v.Kind(), KindBool; g != w {
 		panic(fmt.Sprintf("Value kind is %s, not %s", g, w))
 	}
+
 	return v.bool()
 }
 
@@ -288,6 +303,7 @@ func (v Value) Time() time.Time {
 	if g, w := v.Kind(), KindTime; g != w {
 		panic(fmt.Sprintf("Value kind is %s, not %s", g, w))
 	}
+
 	return v.time()
 }
 
@@ -301,6 +317,7 @@ func (v Value) Group() []Attr {
 	if v.Kind() == KindGroup {
 		return v.group()
 	}
+
 	panic("Group: bad kind")
 }
 
@@ -313,10 +330,12 @@ func (v Value) group() []Attr {
 // Equal reports whether v and w represent the same Go value.
 func (v Value) Equal(w Value) bool {
 	k1 := v.Kind()
+
 	k2 := w.Kind()
 	if k1 != k2 {
 		return false
 	}
+
 	switch k1 {
 	case KindInt64:
 		return v.Int64() == w.Int64()
@@ -345,5 +364,6 @@ func (v Value) isEmptyGroup() bool {
 	if v.Kind() != KindGroup {
 		return false
 	}
+
 	return len(v.group()) == 0
 }
