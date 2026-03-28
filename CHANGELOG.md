@@ -9,7 +9,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changes
 - feat: add golog v2 structured logging module (589898f)
 - docs: improve godoc and README for golog module (fc87c27)
-
 ## [1.0.1] - 2000-01-01
 
 ### Changes
