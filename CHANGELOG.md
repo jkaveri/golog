@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.2.0] - 2026-03-28
+
+### Changes
+- update change log (83cb375)
+- chore: update CHANGELOG for v1.1.0 (4fc0765)
+- chore: update CHANGELOG for v1.1.0 (d3a8f7c)
+- docs: wrap godoc comments for readability (#2) (953622d)
+- enhance readme (96f2d0b)
+- gomod (efa68a1)
+- feat/add golog v2 module (#1) (316016a)
 ## [1.1.0] - 2026-03-28
 
 ### Changes
@@ -15,7 +25,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changes
 - Project history starts here.
 
-[Unreleased]: https://github.com/jkaveri/golog/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/jkaveri/golog/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/jkaveri/golog/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/jkaveri/golog/compare/v1.0.1...v1.1.0
 [1.1.0]: https://github.com/jkaveri/golog/compare/v1.0.1...v1.1.0
 [1.1.0]: https://github.com/jkaveri/golog/compare/v1.0.1...v1.1.0
