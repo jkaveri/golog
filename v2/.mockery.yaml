@@ -1,0 +1,10 @@
+template: testify
+filename: "mock_{{.InterfaceName | lower }}.go"
+dir: mock/{{.InterfaceDirRelative}}
+structname: '{{.InterfaceName}}'
+pkgname: mock{{.SrcPackageName}}
+packages:
+  github.com/jkaveri/golog/v2:
+    config:
+      all: true
+      recursive: true

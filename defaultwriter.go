@@ -20,6 +20,8 @@ type defaultWriter struct {
 
 // NewDefaultWriter creates a new defaultWriter instance with the given io.Writer.
 // The writer is wrapped in a buffer for better performance.
+// Unsupported field types (complex64, complex128, channels, functions) will cause a panic.
+//
 // Example:
 //
 //	writer := NewDefaultWriter(os.Stdout)
@@ -36,6 +38,7 @@ func NewDefaultWriter(output io.Writer) *defaultWriter {
 //
 // The fields are automatically converted to strings and properly escaped.
 // The caller information (file and line) is automatically captured.
+// Panics on unsupported field types (complex numbers, channels, functions).
 func (l *defaultWriter) Write(level int, msg string, fields map[string]any) {
 	file, line := getCallerInfo(skipFrames)
 	fmt.Fprintf(
@@ -84,12 +87,8 @@ func (l *defaultWriter) fieldsToString(fields map[string]any) string {
 }
 
 // valToString converts any value to its string representation.
-// It handles various types including:
-// - Basic types (string, bool, numbers)
-// - Complex numbers
-// - Time values (formatted as RFC3339)
-// - Error types
-// - Any other type (converted using JSON serialization via Sonic)
+// It handles: strings, bools, numbers, time.Time, error, and other types via Sonic JSON.
+// Panics on complex64, complex128, and other types not supported by Sonic.
 func (l *defaultWriter) valToString(value any) string {
 	var sb strings.Builder
 

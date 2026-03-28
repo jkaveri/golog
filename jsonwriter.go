@@ -14,7 +14,13 @@ type jsonWriter struct {
 	output io.Writer
 }
 
-// NewJSONWriter creates a new JSON logger that writes to the specified io.Writer
+// NewJSONWriter creates a new JSON logger that writes machine-readable logs to the given io.Writer.
+// Each log entry is a single JSON object with keys: time, level, msg, caller, plus any custom fields.
+// Ideal for production environments and log aggregation tools (e.g., ELK, Datadog).
+//
+// Example output:
+//
+//	{"time":"2024-03-30T12:34:56Z","level":"INFO","msg":"User logged in","caller":"main.go:42","user_id":123}
 func NewJSONWriter(output io.Writer) *jsonWriter {
 	return &jsonWriter{
 		writer: bufio.NewWriterSize(output, defaultBufferSize),

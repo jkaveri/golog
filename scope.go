@@ -8,7 +8,9 @@ import (
 )
 
 // LogScope represents a logging context with associated fields and enrichers.
-// It provides methods for adding fields and writing log entries.
+// It supports method chaining (With, WithFields, WithContext, WithError) and is typically
+// used for request handlers or operations where fields should propagate to all log calls.
+// LogScope is not thread-safe; create a new scope per goroutine.
 type LogScope struct {
 	// writer is the LogWriter instance used to write log entries
 	writer LogWriter
@@ -37,8 +39,10 @@ func (l *LogScope) Info(msg string, args ...any) {
 	l.write(LevelInfo, msg, args...)
 }
 
-// Error writes a log entry at the error level.
+// Error writes a log entry at the error level and returns an error for propagation.
 // The message and any additional arguments are formatted using fmt.Sprintf.
+// If the scope has an error field (via WithError), returns errors.Wrap of that error;
+// otherwise returns a new error with the formatted message.
 func (l *LogScope) Error(msg string, args ...any) error {
 	l.write(LevelError, msg, args...)
 
