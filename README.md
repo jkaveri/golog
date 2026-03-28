@@ -1,21 +1,84 @@
 # Golog
 
-A clean and consistent logging interface for Go applications that provides structured logging capabilities with a simple and intuitive API.
+Structured logging for Go.
+
+**Use [v2](v2/README.md).** New projects and documentation should target **`github.com/jkaveri/golog/v2`**. The **module root** import (`github.com/jkaveri/golog` without `/v2`) is the **legacy v1 API**; it remains published **only for backward compatibility** with existing code. Do not choose v1 for new work.
 
 ## Table of Contents
 
+- [Table of Contents](#table-of-contents)
+- [v2 (recommended)](#v2-recommended)
+- [Legacy API (v1)](#legacy-api-v1)
+- [Requirements](#requirements)
 - [Features](#features)
-- [Installation](#installation)
+- [Installation (legacy v1)](#installation-legacy-v1)
 - [Quick Start](#quick-start)
+  - [JSON Logger](#json-logger)
 - [Interfaces](#interfaces)
+  - [LogWriter Interface](#logwriter-interface)
+  - [Enricher Interface](#enricher-interface)
+  - [Thread Safety](#thread-safety)
 - [Advanced Usage](#advanced-usage)
+  - [Scoped Logging](#scoped-logging)
+  - [Custom Writer Implementation](#custom-writer-implementation)
+  - [Log Enrichment](#log-enrichment)
+  - [Error Handling](#error-handling)
 - [Configuration](#configuration)
+  - [Log Levels](#log-levels)
+  - [Output Configuration](#output-configuration)
 - [Unsupported Types](#unsupported-types)
+  - [Unsupported Types Include:](#unsupported-types-include)
+  - [Example of Handling Unsupported Types](#example-of-handling-unsupported-types)
 - [Best Practices](#best-practices)
 - [API Reference](#api-reference)
-- [Common Pitfalls](#common-pitfalls)
+  - [Functions](#functions)
+  - [Types](#types)
+  - [Level Constants](#level-constants)
+  - [Implementations](#implementations)
+  - [Common Pitfalls](#common-pitfalls)
 - [Contributing](#contributing)
 - [License](#license)
+
+## v2 (recommended)
+
+Install and use the **`/v2` module**:
+
+```bash
+go get github.com/jkaveri/golog/v2
+```
+
+v2 provides a small `Logger` API (`Debug`, `Info`, `Error`, `With`, `WithContext`, `WithError`), slog-style `Attr` / `Value`, declarative `Config` (text or JSON, level, optional source enrichment), pluggable `Writer` implementations (`TextWriter`, `JSONWriter`), and optional `Enricher` hooks.
+
+**Full documentation, presets, and examples:** [v2/README.md](v2/README.md).
+
+### v2 quick start
+
+```go
+package main
+
+import (
+	"github.com/jkaveri/golog/v2"
+)
+
+func main() {
+	log, err := golog.NewLogger(golog.Config{
+		Format: golog.FormatText,
+		Output: "", // stdout
+		Level:  golog.LevelDebug,
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	log.Info("server started",
+		golog.String("addr", ":8080"),
+	)
+}
+```
+
+## Legacy API (v1)
+
+Everything from [Requirements](#requirements) onward in this file describes the **legacy** package at the **module root** (`github.com/jkaveri/golog`). That API is **frozen** for **backward compatibility**; **refer to v2** for current behavior, types, and best practices.
 
 ## Requirements
 
@@ -38,11 +101,15 @@ A clean and consistent logging interface for Go applications that provides struc
 - Performance optimized for high-throughput applications
 
 
-## Installation
+## Installation (legacy v1)
+
+For existing code that still uses the **module root** (v1):
 
 ```bash
 go get github.com/jkaveri/golog
 ```
+
+For **new** code, use [v2](#v2-recommended) (`github.com/jkaveri/golog/v2`) instead.
 
 ## Quick Start
 
