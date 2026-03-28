@@ -2,11 +2,14 @@
 
 Structured logging for Go.
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/jkaveri/golog/v2.svg)](https://pkg.go.dev/github.com/jkaveri/golog/v2)
+
 **Use [v2](v2/README.md).** New projects and documentation should target **`github.com/jkaveri/golog/v2`**. The **module root** import (`github.com/jkaveri/golog` without `/v2`) is the **legacy v1 API**; it remains published **only for backward compatibility** with existing code. Do not choose v1 for new work.
 
 ## Table of Contents
 
 - [Table of Contents](#table-of-contents)
+- [v2 vs legacy at a glance](#v2-vs-legacy-at-a-glance)
 - [v2 (recommended)](#v2-recommended)
 - [Legacy API (v1)](#legacy-api-v1)
 - [Requirements](#requirements)
@@ -27,17 +30,19 @@ Structured logging for Go.
   - [Log Levels](#log-levels)
   - [Output Configuration](#output-configuration)
 - [Unsupported Types](#unsupported-types)
-  - [Unsupported Types Include:](#unsupported-types-include)
-  - [Example of Handling Unsupported Types](#example-of-handling-unsupported-types)
 - [Best Practices](#best-practices)
 - [API Reference](#api-reference)
-  - [Functions](#functions)
-  - [Types](#types)
-  - [Level Constants](#level-constants)
-  - [Implementations](#implementations)
-  - [Common Pitfalls](#common-pitfalls)
 - [Contributing](#contributing)
 - [License](#license)
+
+## v2 vs legacy at a glance
+
+| Topic | **v2** (`github.com/jkaveri/golog/v2`) | **Legacy v1** (`github.com/jkaveri/golog`) |
+|-------|----------------------------------------|--------------------------------------------|
+| **Status** | Current API; new features land here | Frozen; bugfixes / compatibility only |
+| **Shape** | `Logger` + slog-style `Attr` / `Value`, `Config`, `Writer` | Package-level helpers + `LogScope`, `LogWriter` |
+| **Levels** | `Debug`, `Info`, `Error` only (no separate “warn”) | Same three levels |
+| **Docs** | [v2/README.md](v2/README.md), [pkg.go.dev](https://pkg.go.dev/github.com/jkaveri/golog/v2) | This file (below), [pkg.go.dev](https://pkg.go.dev/github.com/jkaveri/golog) |
 
 ## v2 (recommended)
 
@@ -47,9 +52,15 @@ Install and use the **`/v2` module**:
 go get github.com/jkaveri/golog/v2
 ```
 
-v2 provides a small `Logger` API (`Debug`, `Info`, `Error`, `With`, `WithContext`, `WithError`), slog-style `Attr` / `Value`, declarative `Config` (text or JSON, level, optional source enrichment), pluggable `Writer` implementations (`TextWriter`, `JSONWriter`), and optional `Enricher` hooks.
+**Documentation**
 
-**Full documentation, presets, and examples:** [v2/README.md](v2/README.md).
+- **Guide (presets, JSON, context/source enrichers, diagrams):** [v2/README.md](v2/README.md)
+- **API reference:** [pkg.go.dev/github.com/jkaveri/golog/v2](https://pkg.go.dev/github.com/jkaveri/golog/v2)
+- **Runnable examples:** [`v2/_examples/`](v2/_examples/)
+
+v2 provides a small `Logger` API (`Debug`, `Info`, `Error`, `With`, `WithContext`, `WithError`), slog-style `Attr` / `Value`, declarative `Config` (text or JSON, level, optional caller/source enrichment), pluggable `Writer` implementations (`TextWriter`, `JSONWriter`), and optional `Enricher` hooks. Package-level helpers (`golog.Info`, etc.) are available after optional [`InitDefault`](https://pkg.go.dev/github.com/jkaveri/golog/v2#InitDefault).
+
+Preset configs are available via [`github.com/jkaveri/golog/v2/config`](https://pkg.go.dev/github.com/jkaveri/golog/v2/config) (`Development`, `Production`, and related helpers).
 
 ### v2 quick start
 
@@ -82,24 +93,22 @@ Everything from [Requirements](#requirements) onward in this file describes the 
 
 ## Requirements
 
-- Go 1.18+
-- Dependencies: [bytedance/sonic](https://github.com/bytedance/sonic), [pkg/errors](https://github.com/pkg/errors)
+- **v2** (`github.com/jkaveri/golog/v2`): Go **1.26+** (see [`v2/go.mod`](v2/go.mod)).
+- **Legacy v1** (module root): Go **1.23+** (see [`go.mod`](go.mod)); dependencies include [bytedance/sonic](https://github.com/bytedance/sonic) and [pkg/errors](https://github.com/pkg/errors).
 
 ## Features
 
-- Simple and clean interface for logging
-- Structured logging with key-value fields
-- Support for different log levels (Debug, Info, Error)
-- Context-aware logging with scoped fields
-- Automatic error tracking
-- Extensible logger implementation
-- Default FMT logger implementation included
-- JSON logger implementation for machine-readable logs
-- Automatic file and line information in logs
-- Support for log levels configuration
-- Thread-safe writer implementations
-- Performance optimized for high-throughput applications
+**v2** (see [v2/README.md](v2/README.md) for detail):
 
+- Compact `Logger` interface with structured `Attr` fields
+- Text and JSON line writers, declarative `Config`, optional enrichers (context, source)
+- Level filtering on the logger; thread-safe writers
+
+**Legacy v1** (sections below):
+
+- Simple package-level API and scoped fields (`With`, `WithContext`, …)
+- Text and JSON `LogWriter` implementations
+- Global enrichers and level configuration
 
 ## Installation (legacy v1)
 
@@ -121,26 +130,26 @@ import "github.com/jkaveri/golog"
 func main() {
     // Simple logging
     golog.Info("Application started")
-    // Output: main.go:N [INFO][2024-03-30T12:34:56Z] Application started
+    // Output: main.go:N [INFO][2026-03-30T12:34:56Z] Application started
 
     // Logging with fields
     golog.With("user_id", 123).
         With("username", "john_doe").
         Info("User logged in")
-    // Output: main.go:N [INFO][2024-03-30T12:34:56Z] User logged in user_id="123" username="john_doe"
+    // Output: main.go:N [INFO][2026-03-30T12:34:56Z] User logged in user_id="123" username="john_doe"
 
     // Logging with error
     err := someOperation()
     if err != nil {
         golog.WithError(err).Error("Operation failed")
-        // Output: main.go:N [ERROR][2024-03-30T12:34:56Z] Operation failed error="operation failed: invalid input"
+        // Output: main.go:N [ERROR][2026-03-30T12:34:56Z] Operation failed error="operation failed: invalid input"
     }
 }
 ```
 
 ### JSON Logger
 
-The JSON logger is perfect for production environments where logs need to be parsed by log aggregation tools.
+The JSON logger is suitable for production environments where logs need to be parsed by log aggregation tools.
 
 ```go
 package main
@@ -163,7 +172,7 @@ func main() {
         Info("Application started")
 
     // Output will look like:
-    // {"time":"2024-03-30T12:34:56Z","level":"INFO","msg":"Application started","version":"1.0.0","environment":"production","caller":"main.go:N"}\n
+    // {"time":"2026-03-30T12:34:56Z","level":"INFO","msg":"Application started","version":"1.0.0","environment":"production","caller":"main.go:N"}\n
 }
 ```
 
@@ -183,6 +192,7 @@ type LogWriter interface {
 ```
 
 The `LogWriter` interface is responsible for the actual writing of log entries. The library provides two implementations:
+
 - `defaultWriter`: A text-based logger that writes human-readable logs
 - `jsonWriter`: A JSON logger that writes machine-readable logs
 
@@ -200,7 +210,6 @@ The `Enricher` interface allows you to add additional context to log entries. En
 ### Thread Safety
 
 The `LogScope` type is not thread-safe and should not be shared between goroutines. Each goroutine should create its own scope using the provided factory functions (`With`, `WithFields`, `WithContext`, etc.). The underlying `LogWriter` implementations (`defaultWriter` and `jsonWriter`) are thread-safe and can be safely used from multiple goroutines.
-
 
 ## Advanced Usage
 
@@ -358,14 +367,14 @@ golog.SetWriter(logger)
 
 Golog uses [bytedance/sonic](https://github.com/bytedance/sonic) for JSON encoding. As a result, the library inherits the same type limitations as sonic. When using structs with fields that contain unsupported types, you should use the `json:"-"` tag to skip those fields during logging. Any serialization issues, including unsupported types or invalid JSON structures, will cause a panic.
 
-### Unsupported Types Include:
+**Unsupported types include:**
 
 - Complex numbers (`complex64`, `complex128`)
 - Channels
 - Functions
 - Other types not supported by sonic
 
-### Example of Handling Unsupported Types
+**Example of handling unsupported types:**
 
 ```go
 type User struct {
@@ -414,6 +423,8 @@ func main() {
 
 ## API Reference
 
+The following applies to the **legacy v1** package (`github.com/jkaveri/golog`) only. For v2, see [pkg.go.dev/github.com/jkaveri/golog/v2](https://pkg.go.dev/github.com/jkaveri/golog/v2).
+
 ### Functions
 
 - `golog.Debug(msg string, args ...any)` - Log a debug message; args are passed to fmt.Sprintf
@@ -455,8 +466,8 @@ func main() {
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome. Please open an issue to discuss larger changes, and ensure `go test ./...` passes from the repository root (including [`v2/`](v2/)) before submitting a pull request.
 
 ## License
 
-MIT License
+This project is licensed under the MIT License; see [LICENSE](LICENSE).
