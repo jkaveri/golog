@@ -5,7 +5,8 @@ package golog
 
 import "time"
 
-// Attr is one key-value pair on a log line. Construct with helpers such as [String], [Int],
+// Attr is one key-value pair on a log line. Construct with helpers such as
+// [String], [Int],
 // [Group], and [Any]; inspect via [Attr.Value] and [Value.Kind].
 type Attr struct {
 	Key   string
@@ -17,7 +18,8 @@ func (a Attr) Equal(b Attr) bool {
 	return a.Key == b.Key && a.Value.Equal(b.Value)
 }
 
-// String returns a compact debug form "key=value" using [Value.String] for the value.
+// String returns a compact debug form "key=value" using [Value.String] for the
+// value.
 func (a Attr) String() string {
 	return a.Key + "=" + a.Value.String()
 }

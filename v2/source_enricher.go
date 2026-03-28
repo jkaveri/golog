@@ -1,6 +1,8 @@
-// Source enricher: append caller location ([SourceFormatFunctionFileLine] or [SourceFormatFileLine]) to log records.
+// Source enricher: append caller location ([SourceFormatFunctionFileLine] or
+// [SourceFormatFileLine]) to log records.
 //
-// Exported types here are the source-enricher feature ([NewSourceEnricher], [SourceEnricherOptions], [SourceFormat]).
+// Exported types here are the source-enricher feature ([NewSourceEnricher],
+// [SourceEnricherOptions], [SourceFormat]).
 package golog
 
 import (
@@ -16,7 +18,8 @@ type SourceFormat uint8
 const (
 	// SourceFormatFunctionFileLine renders "function file:line".
 	SourceFormatFunctionFileLine SourceFormat = iota
-	// SourceFormatFileLine renders "file:line" (basename only, no function name).
+	// SourceFormatFileLine renders "file:line" (basename only, no function
+	// name).
 	SourceFormatFileLine
 )
 
@@ -24,7 +27,8 @@ const (
 type SourceEnricherOptions struct {
 	// FieldName is the attribute key. Defaults to "source".
 	FieldName string
-	// Format controls source value rendering: [SourceFormatFunctionFileLine] (default) or
+	// Format controls source value rendering: [SourceFormatFunctionFileLine]
+	// (default) or
 	// [SourceFormatFileLine] for basename:line only.
 	Format SourceFormat
 	// Skip adds caller frames to skip beyond the internal default.
@@ -42,9 +46,10 @@ type sourceEnricher struct {
 	skip      int
 }
 
-// NewSourceEnricher returns an [Enricher] that appends a caller location attribute using
-// [runtime.Caller]. Combine with [Config.EnableSource] / source fields in [Config], or pass
-// manually to [NewLogger] / [NewLoggerWriter]. Tune frame skipping with [SourceEnricherOptions.Skip]
+// NewSourceEnricher returns an [Enricher] that appends a caller location
+// attribute using [runtime.Caller]. Combine with [Config.EnableSource] / source
+// fields in [Config], or pass manually to [NewLogger] / [NewLoggerWriter]. Tune
+// frame skipping with [SourceEnricherOptions.Skip]
 // if wrappers sit between the log call and the runtime frame.
 func NewSourceEnricher(opts SourceEnricherOptions) Enricher {
 	fieldName := opts.FieldName
@@ -66,6 +71,7 @@ func NewSourceEnricher(opts SourceEnricherOptions) Enricher {
 
 func (e sourceEnricher) Enrich(ctx context.Context, builder *RecordBuilder) {
 	_ = ctx
+
 	if attr, ok := e.sourceAttr(); ok {
 		builder.AddAttr(attr)
 	}
@@ -86,12 +92,14 @@ func (e sourceEnricher) sourceAttr() (Attr, bool) {
 		if fn == nil {
 			return Attr{}, false
 		}
+
 		value := fmt.Sprintf(
 			"%s %s:%d",
 			fn.Name(),
 			filepath.Base(file),
 			line,
 		)
+
 		return String(e.fieldName, value), true
 	default:
 		return Attr{}, false

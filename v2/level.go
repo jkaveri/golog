@@ -9,7 +9,8 @@ import (
 // A Level is the importance or severity of a log event.
 // The higher the level, the more important or severe the event.
 //
-// For practical guidance on when to use each level, see the package documentation
+// For practical guidance on when to use each level, see the package
+// documentation
 // (“Logging levels and philosophy”).
 type Level uint8
 
@@ -28,23 +29,28 @@ type Level uint8
 // verbosity is thus the negation of event severity, and the default verbosity
 // of 0 accepts all events at least as severe as INFO.
 //
-// Third, there is one integer step between [LevelInfo] and [LevelError] (level 1) for
-// custom schemes; it stringifies as INFO+1. Levels at or above [LevelError] use ERROR+N.
+// Third, there is one integer step between [LevelInfo] and [LevelError] (level
+// 1) for custom schemes; it stringifies as INFO+1. Levels at or above
+// [LevelError] use ERROR+N.
 //
 // In typical use, prefer [LevelInfo] for normal operation and [LevelDebug] for
-// troubleshooting; see package documentation for philosophy. [LevelError] records
+// troubleshooting; see package documentation for philosophy. [LevelError]
+// records
 // elevated severity at this layer.
 const (
-	// LevelDebug is for information useful when diagnosing problems. Turn it on in
-	// development or when investigating issues; it is usually off in production.
+	// LevelDebug is for information useful when diagnosing problems. Turn it on
+	// in development or when investigating issues; it is usually off in
+	// production.
 	LevelDebug Level = iota
 
-	// LevelInfo is the default: messages that describe what the system is doing under
+	// LevelInfo is the default: messages that describe what the system is doing
+	// under
 	// normal operation (requests, state changes, milestones).
 	LevelInfo
 
-	// LevelError is for failures and exceptional conditions you are recording at this layer.
-	// Prefer returning errors from functions rather than only logging them; see package docs.
+	// LevelError is for failures and exceptional conditions you are recording
+	// at this layer. Prefer returning errors from functions rather than only
+	// logging them; see package docs.
 	LevelError
 )
 
@@ -89,6 +95,7 @@ func (l *Level) UnmarshalJSON(data []byte) error {
 	if err != nil {
 		return err
 	}
+
 	return l.parse(s)
 }
 

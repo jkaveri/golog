@@ -1,0 +1,63 @@
+version: "2"
+run:
+  tests: false
+  allow-parallel-runners: true
+linters:
+  default: none
+  enable:
+    - errcheck
+    - gosec
+    - govet
+    - ineffassign
+    - revive
+    - staticcheck
+    - unused
+    - wsl_v5
+  settings:
+    revive:
+      max-open-files: 2048
+      confidence: 0.8
+      severity: warning
+      enable-all-rules: false
+    wsl_v5:
+      allow-first-in-block: true
+      allow-whole-block: false
+      branch-max-lines: 2
+      case-max-lines: 0
+      default: all
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    paths:
+      - .*.gen.go
+      - .*.pb.go
+      - .*_test.go
+      - .cursor
+      - .vscode
+      - mock/.*
+formatters:
+  enable:
+    - gofumpt
+    - golines
+  settings:
+    gofumpt:
+      module-path: "github.com/jkaveri/golog/v2"
+    golines:
+      max-len: 80
+      tab-len: 4
+      shorten-comments: true
+      reformat-tags: true
+      chain-split-dots: true
+  exclusions:
+    generated: lax
+    paths:
+      - .*.gen.go
+      - .*.pb.go
+      - .*_test.go
+      - .cursor
+      - .vscode
+      - mock/.*
