@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.1.0] - 2026-04-04
+
+### Changes
+- refactor(v2): colocate mocks and align tests with logger pipeline (d59571b)
 ## [1.2.0] - 2026-03-28
 
 ### Changes
@@ -24,6 +28,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changes
 - Project history starts here.
 
-[Unreleased]: https://github.com/jkaveri/golog/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/jkaveri/golog/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/jkaveri/golog/compare/v2.0.0...v2.1.0
 [1.2.0]: https://github.com/jkaveri/golog/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/jkaveri/golog/compare/v1.0.1...v1.1.0
