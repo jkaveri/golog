@@ -7,6 +7,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestTextWriter_Write_format(t *testing.T) {
@@ -17,31 +19,21 @@ func TestTextWriter_Write_format(t *testing.T) {
 	rb.AddAttrs(String("k1", "v1"), Int("n", 42))
 	r := rb.Build()
 
-	if err := tw.Write(context.Background(), r); err != nil {
-		t.Fatal(err)
-	}
+	err := tw.Write(context.Background(), r)
+	require.NoError(t, err)
 	line := buf.String()
-	if !strings.HasSuffix(line, "\n") {
-		t.Fatalf("want trailing newline: %q", line)
-	}
-	if !strings.Contains(line, "INFO") {
-		t.Fatalf("want INFO in line: %q", line)
-	}
-	if !strings.Contains(line, `"hello world"`) {
-		t.Fatalf("want quoted message: %q", line)
-	}
-	if !strings.Contains(line, "k1=v1") || !strings.Contains(line, "n=42") {
-		t.Fatalf("want attrs: %q", line)
-	}
+	require.True(t, strings.HasSuffix(line, "\n"), "want trailing newline: %q", line)
+	require.Contains(t, line, "INFO")
+	require.Contains(t, line, `"hello world"`)
+	require.Contains(t, line, "k1=v1")
+	require.Contains(t, line, "n=42")
 }
 
 func TestTextWriter_Write_nilOut(t *testing.T) {
 	tw := &TextWriter{Out: nil}
 	r := newRecordBuilder(testRecordTime, LevelInfo, "x", 0).Build()
 	err := tw.Write(context.Background(), r)
-	if err == nil {
-		t.Fatal("want error for nil Out")
-	}
+	require.Error(t, err)
 }
 
 func TestTextWriter_concurrentWrite(t *testing.T) {
@@ -57,18 +49,14 @@ func TestTextWriter_concurrentWrite(t *testing.T) {
 		}()
 	}
 	wg.Wait()
-	lines := strings.Count(buf.String(), "\n")
-	if lines != 8 {
-		t.Fatalf("want 8 lines, got %d", lines)
-	}
+	require.Equal(t, 8, strings.Count(buf.String(), "\n"))
 }
 
 func TestFormatTextAttr_groupFlat(t *testing.T) {
 	attr := Attr{Value: GroupValue(Int("a", 1), String("b", "two"))}
 	got := string(formatTextAttr(attr))
-	if !strings.Contains(got, "a=1") || !strings.Contains(got, "b=two") {
-		t.Fatalf("got %q", got)
-	}
+	require.Contains(t, got, "a=1")
+	require.Contains(t, got, "b=two")
 }
 
 func TestFormatTextAttr_groupNested(t *testing.T) {
@@ -76,17 +64,13 @@ func TestFormatTextAttr_groupNested(t *testing.T) {
 	a := Attr{Key: "inner", Value: inner}
 	attr := Attr{Value: GroupValue(a)}
 	got := string(formatTextAttr(attr))
-	if got != "inner.n=42" {
-		t.Fatalf("want inner.n=42, got %q", got)
-	}
+	require.Equal(t, "inner.n=42", got)
 }
 
 func TestFormatTextAttr_groupNestedPrefix(t *testing.T) {
 	attr := Group("outer", Group("inner", Int("n", 1)))
 	got := string(formatTextAttr(attr))
-	if got != "outer.inner.n=1" {
-		t.Fatalf("want outer.inner.n=1, got %q", got)
-	}
+	require.Equal(t, "outer.inner.n=1", got)
 }
 
 func TestTextWriter_groupAttrPrefixedKeys(t *testing.T) {
@@ -95,11 +79,118 @@ func TestTextWriter_groupAttrPrefixedKeys(t *testing.T) {
 	rb := newRecordBuilder(testRecordTime, LevelInfo, "m", 1)
 	rb.AddAttr(Group("outer", Int("n", 42), Group("inner", String("k", "v"))))
 	r := rb.Build()
-	if err := tw.Write(context.Background(), r); err != nil {
-		t.Fatal(err)
-	}
+	err := tw.Write(context.Background(), r)
+	require.NoError(t, err)
 	line := buf.String()
-	if !strings.Contains(line, "outer.n=42") || !strings.Contains(line, "outer.inner.k=v") {
-		t.Fatalf("want prefixed group attrs: %q", line)
+	require.Contains(t, line, "outer.n=42")
+	require.Contains(t, line, "outer.inner.k=v")
+}
+
+func TestTextWriter_customTimeLayout(t *testing.T) {
+	var buf bytes.Buffer
+	tw := NewTextWriter(&buf)
+	tw.TimeLayout = time.RFC1123
+	ts := time.Date(2026, 3, 28, 12, 0, 0, 0, time.UTC)
+	rb := newRecordBuilder(ts, LevelInfo, "msg", 0)
+	r := rb.Build()
+	err := tw.Write(context.Background(), r)
+	require.NoError(t, err)
+	require.True(t, strings.HasPrefix(buf.String(), ts.Format(time.RFC1123)), "line: %q", buf.String())
+}
+
+func TestTextWriter_durationFormats(t *testing.T) {
+	type Args struct {
+		format DurationFormat
 	}
+	type Expects struct {
+		wantSubstring string
+	}
+
+	d := 1500 * time.Millisecond
+
+	testCases := []struct {
+		name    string
+		args    Args
+		expects Expects
+	}{
+		{
+			name:    "go-string",
+			args:    Args{format: DurationFormatGo},
+			expects: Expects{wantSubstring: d.String()},
+		},
+		{
+			name:    "seconds-float",
+			args:    Args{format: DurationFormatSeconds},
+			expects: Expects{wantSubstring: "1.5"},
+		},
+		{
+			name:    "nanos-int",
+			args:    Args{format: DurationFormatNanos},
+			expects: Expects{wantSubstring: "1500000000"},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			tw := NewTextWriter(&buf)
+			tw.DurationFormat = tc.args.format
+			rb := newRecordBuilder(testRecordTime, LevelInfo, "m", 1)
+			rb.AddAttr(Duration("latency", d))
+			r := rb.Build()
+			err := tw.Write(context.Background(), r)
+			require.NoError(t, err)
+			require.Contains(t, buf.String(), tc.expects.wantSubstring)
+		})
+	}
+}
+
+func TestTextWriter_scalarAttrs(t *testing.T) {
+	type Args struct {
+		attr Attr
+	}
+	type Expects struct {
+		wantSubstring string
+	}
+
+	ts := time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC)
+
+	testCases := []struct {
+		name    string
+		args    Args
+		expects Expects
+	}{
+		{name: "float64", args: Args{attr: Float64("f", 0.5)}, expects: Expects{wantSubstring: "f=0.5"}},
+		{name: "uint64", args: Args{attr: Uint64("u", 8)}, expects: Expects{wantSubstring: "u=8"}},
+		{name: "bool-true", args: Args{attr: Bool("b", true)}, expects: Expects{wantSubstring: "b=true"}},
+		{name: "time", args: Args{attr: Time("t", ts)}, expects: Expects{wantSubstring: ts.String()}},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			tw := NewTextWriter(&buf)
+			rb := newRecordBuilder(testRecordTime, LevelInfo, "m", 1)
+			rb.AddAttr(tc.args.attr)
+			r := rb.Build()
+			err := tw.Write(context.Background(), r)
+			require.NoError(t, err)
+			require.Contains(t, buf.String(), tc.expects.wantSubstring)
+		})
+	}
+}
+
+func TestFormatTextAttr_joinKeyPrefixOnly(t *testing.T) {
+	attr := Group("", String("k", "v"))
+	got := string(formatTextAttr(attr))
+	require.Equal(t, "k=v", got)
+}
+
+func TestFormatTextAttr_groupSkipsEmptyPieces(t *testing.T) {
+	attr := Attr{Value: GroupValue(
+		Attr{Key: "a", Value: StringValue("1")},
+		Attr{Key: "skip", Value: GroupValue()},
+		Attr{Key: "b", Value: StringValue("2")},
+	)}
+	got := string(formatTextAttr(attr))
+	require.Contains(t, got, "a=1")
+	require.Contains(t, got, "b=2")
 }

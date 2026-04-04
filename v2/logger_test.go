@@ -2,8 +2,10 @@ package golog
 
 import (
 	"context"
-	"slices"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type testWriter struct {
@@ -12,6 +14,7 @@ type testWriter struct {
 	lastAttrs    []Attr
 	lastMessage  string
 	lastLevel    Level
+	lastCtx      context.Context
 	captureAttrs bool
 }
 
@@ -19,6 +22,7 @@ func (w *testWriter) Write(ctx context.Context, record Record) error {
 	w.writeCount++
 	w.lastMessage = record.Message
 	w.lastLevel = record.Level
+	w.lastCtx = ctx
 	if w.captureAttrs {
 		w.lastAttrKeys = w.lastAttrKeys[:0]
 		w.lastAttrs = w.lastAttrs[:0]
@@ -31,30 +35,53 @@ func (w *testWriter) Write(ctx context.Context, record Record) error {
 	return nil
 }
 
-func TestLogger_belowMinLevel_noWrite(t *testing.T) {
-	w := &testWriter{}
-	log := NewLoggerWriter(w, LevelInfo)
-	log.Debug("hello", String("k", "v"))
-	if w.writeCount != 0 {
-		t.Fatalf("Write called %d times, want 0", w.writeCount)
+func TestLogger_minLevel(t *testing.T) {
+	type Args struct {
+		minLevel Level
+		emit     func(Logger)
 	}
-}
-
-func TestLogger_nilWriter_noWrite(t *testing.T) {
-	log := NewLoggerWriter(nil, LevelDebug)
-	log.Info("m") // must not panic
-}
-
-func TestLogger_minLevelAllowsInfo(t *testing.T) {
-	w := &testWriter{}
-	log := NewLoggerWriter(w, LevelInfo)
-	log.Debug("skip")
-	if w.writeCount != 0 {
-		t.Fatal("Debug below MinLevel")
+	type Expects struct {
+		wantWriteCount int
 	}
-	log.Info("x")
-	if w.writeCount != 1 {
-		t.Fatalf("writeCount=%d, want 1", w.writeCount)
+
+	testCases := []struct {
+		name    string
+		args    Args
+		expects Expects
+	}{
+		{
+			name: "debug-suppressed-when-min-info",
+			args: Args{
+				minLevel: LevelInfo,
+				emit:     func(log Logger) { log.Debug("hello") },
+			},
+			expects: Expects{wantWriteCount: 0},
+		},
+		{
+			name: "info-emitted-when-min-info",
+			args: Args{
+				minLevel: LevelInfo,
+				emit:     func(log Logger) { log.Info("x") },
+			},
+			expects: Expects{wantWriteCount: 1},
+		},
+		{
+			name: "debug-emitted-when-min-debug",
+			args: Args{
+				minLevel: LevelDebug,
+				emit:     func(log Logger) { log.Debug("d") },
+			},
+			expects: Expects{wantWriteCount: 1},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			w := &testWriter{}
+			log := NewLoggerWriter(w, tc.args.minLevel)
+			tc.args.emit(log)
+			assert.Equal(t, tc.expects.wantWriteCount, w.writeCount)
+		})
 	}
 }
 
@@ -62,18 +89,72 @@ func TestLogger_SetLevel(t *testing.T) {
 	w := &testWriter{}
 	log := NewLoggerWriter(w, LevelInfo)
 	log.Debug("skip")
-	if w.writeCount != 0 {
-		t.Fatal("Debug should be skipped when MinLevel is Info")
-	}
+	assert.Equal(t, 0, w.writeCount)
+
 	log.SetLevel(LevelDebug)
 	log.Debug("x")
-	if w.writeCount != 1 || w.lastLevel != LevelDebug {
-		t.Fatalf("after SetLevel: count=%d level=%v msg=%q", w.writeCount, w.lastLevel, w.lastMessage)
+
+	assert.Equal(t, 1, w.writeCount)
+	assert.Equal(t, LevelDebug, w.lastLevel)
+	assert.Equal(t, "x", w.lastMessage)
+}
+
+func TestLogger_nilWriter_noPanic(t *testing.T) {
+	log := NewLoggerWriter(nil, LevelDebug)
+	require.NotPanics(t, func() { log.Info("m") })
+}
+
+func TestLogger_levels_emitSeverity(t *testing.T) {
+	type Args struct {
+		emit func(Logger)
+	}
+	type Expects struct {
+		want Level
+		msg  string
+	}
+
+	testCases := []struct {
+		name    string
+		args    Args
+		expects Expects
+	}{
+		{
+			name: "debug-level",
+			args: Args{emit: func(log Logger) { log.Debug("d") }},
+			expects: Expects{
+				want: LevelDebug,
+				msg:  "d",
+			},
+		},
+		{
+			name: "info-level",
+			args: Args{emit: func(log Logger) { log.Info("i") }},
+			expects: Expects{
+				want: LevelInfo,
+				msg:  "i",
+			},
+		},
+		{
+			name: "error-level",
+			args: Args{emit: func(log Logger) { log.Error("e") }},
+			expects: Expects{
+				want: LevelError,
+				msg:  "e",
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			w := &testWriter{}
+			log := NewLoggerWriter(w, LevelDebug)
+			tc.args.emit(log)
+			assert.Equal(t, tc.expects, Expects{want: w.lastLevel, msg: w.lastMessage})
+		})
 	}
 }
 
-func TestLogger_enrichersRunInOrder(t *testing.T) {
-	w := &testWriter{captureAttrs: true}
+func TestLogger_enrichers_runInOrder(t *testing.T) {
 	var order []string
 	e1 := EnricherFunc(func(ctx context.Context, r *RecordBuilder) {
 		order = append(order, "e1")
@@ -83,41 +164,40 @@ func TestLogger_enrichersRunInOrder(t *testing.T) {
 		order = append(order, "e2")
 		r.AddAttr(String("b", "2"))
 	})
+
+	w := &testWriter{captureAttrs: true}
 	log := NewLoggerWriter(w, LevelDebug, e1, e2)
 	log.Info("msg", String("call", "site"))
-	if !slices.Equal(order, []string{"e1", "e2"}) {
-		t.Fatalf("enricher order: %v", order)
+
+	type Expects struct {
+		wantOrder  []string
+		wantAttrKs []string
 	}
-	wantKeys := []string{"call", "a", "b"}
-	if !slices.Equal(w.lastAttrKeys, wantKeys) {
-		t.Fatalf("attr keys: %v, want %v", w.lastAttrKeys, wantKeys)
-	}
+	assert.Equal(t, Expects{
+		wantOrder:  []string{"e1", "e2"},
+		wantAttrKs: []string{"call", "a", "b"},
+	}, Expects{wantOrder: order, wantAttrKs: w.lastAttrKeys})
 }
 
-func TestLogger_attrOrder_withThenCallThenEnricher(t *testing.T) {
+func TestLogger_With_attrOrder_scopedCallSiteEnricher(t *testing.T) {
 	w := &testWriter{captureAttrs: true}
 	en := EnricherFunc(func(ctx context.Context, r *RecordBuilder) {
 		r.AddAttr(String("enriched", "x"))
 	})
 	log := NewLoggerWriter(w, LevelDebug, en).With(String("scoped", "s"))
-
 	log.Info("m", String("call", "c"))
-	want := []string{"scoped", "call", "enriched"}
-	if !slices.Equal(w.lastAttrKeys, want) {
-		t.Fatalf("keys %v, want %v", w.lastAttrKeys, want)
-	}
+	assert.Equal(t, []string{"scoped", "call", "enriched"}, w.lastAttrKeys)
 }
 
-func TestLogger_levels(t *testing.T) {
+func TestLogger_WithContext_passesContextToWriter(t *testing.T) {
+	type ctxKey struct{}
+
 	type Args struct {
-		emit func(Logger)
+		ctx context.Context
 	}
 	type Expects struct {
-		wantLevel Level
-		wantMsg   string
-	}
-	type Deps struct {
-		w *testWriter
+		wantWriteCount int
+		wantValue      any
 	}
 
 	testCases := []struct {
@@ -125,58 +205,61 @@ func TestLogger_levels(t *testing.T) {
 		args    Args
 		expects Expects
 	}{
-		{name: "debug", args: Args{emit: func(log Logger) { log.Debug("d") }}, expects: Expects{wantLevel: LevelDebug, wantMsg: "d"}},
-		{name: "info", args: Args{emit: func(log Logger) { log.Info("i") }}, expects: Expects{wantLevel: LevelInfo, wantMsg: "i"}},
-		{name: "error", args: Args{emit: func(log Logger) { log.Error("e") }}, expects: Expects{wantLevel: LevelError, wantMsg: "e"}},
+		{
+			name: "writer-receives-context-value",
+			args: Args{
+				ctx: context.WithValue(context.Background(), ctxKey{}, 42),
+			},
+			expects: Expects{
+				wantWriteCount: 1,
+				wantValue:      42,
+			},
+		},
 	}
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			w := &testWriter{}
-			deps := Deps{w: w}
-			log := NewLoggerWriter(deps.w, LevelDebug)
-			tc.args.emit(log)
-			if deps.w.lastLevel != tc.expects.wantLevel || deps.w.lastMessage != tc.expects.wantMsg {
-				t.Fatalf("level=%v msg=%q want level=%v msg=%q", deps.w.lastLevel, deps.w.lastMessage, tc.expects.wantLevel, tc.expects.wantMsg)
-			}
+			log := NewLoggerWriter(w, LevelDebug).WithContext(tc.args.ctx)
+			log.Info("x")
+			assert.Equal(t, tc.expects.wantWriteCount, w.writeCount)
+			assert.Equal(t, tc.expects.wantValue, w.lastCtx.Value(ctxKey{}))
 		})
 	}
 }
 
-func TestLogger_WithContext_passedToWriter(t *testing.T) {
-	type ctxKey struct{}
-	w := &testWriter{}
-	log := NewLoggerWriter(w, LevelDebug).WithContext(context.WithValue(context.Background(), ctxKey{}, 42))
-	log.Info("x")
-	// testWriter doesn't inspect ctx; smoke only
-	if w.writeCount != 1 {
-		t.Fatalf("writes=%d", w.writeCount)
+func TestLogger_WithError(t *testing.T) {
+	type Args struct {
+		err error
 	}
-}
+	type Expects struct {
+		wantAttrKeys []string
+	}
 
-func TestLogger_WithError_nilNoOp(t *testing.T) {
-	w := &testWriter{captureAttrs: true}
-	base := NewLoggerWriter(w, LevelDebug)
-	_ = base.WithError(nil)
-	base.Info("x")
-	for _, k := range w.lastAttrKeys {
-		if k == "error" {
-			t.Fatal("unexpected error attr")
-		}
+	testCases := []struct {
+		name    string
+		args    Args
+		expects Expects
+	}{
+		{
+			name:    "nil-error-is-no-op",
+			args:    Args{err: nil},
+			expects: Expects{wantAttrKeys: nil},
+		},
+		{
+			name:    "non-nil-adds-error-attr",
+			args:    Args{err: context.Canceled},
+			expects: Expects{wantAttrKeys: []string{"error"}},
+		},
 	}
-}
 
-func TestLogger_WithError_addsAttr(t *testing.T) {
-	w := &testWriter{captureAttrs: true}
-	log := NewLoggerWriter(w, LevelDebug).WithError(context.Canceled)
-	log.Info("x")
-	found := false
-	for _, k := range w.lastAttrKeys {
-		if k == "error" {
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Fatalf("keys %v, want error", w.lastAttrKeys)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			w := &testWriter{captureAttrs: true}
+			base := NewLoggerWriter(w, LevelDebug)
+			log := base.WithError(tc.args.err)
+			log.Info("x")
+			assert.Equal(t, tc.expects.wantAttrKeys, w.lastAttrKeys)
+		})
 	}
 }

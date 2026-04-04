@@ -4,3 +4,5 @@ golog.test
 mem.out
 .cursor/*
 .vscode/*
+cover.out
+.DS_Store

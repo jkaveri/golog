@@ -3,6 +3,8 @@ package golog
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestLevel_String(t *testing.T) {
@@ -24,18 +26,14 @@ func TestLevel_String(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := tc.args.lvl.String(); got != tc.expects.want {
-				t.Fatalf("got %q want %q", got, tc.expects.want)
-			}
+			require.Equal(t, tc.expects.want, tc.args.lvl.String())
 		})
 	}
 }
 
 func TestLevel_String_unknownPanics(t *testing.T) {
 	defer func() {
-		if recover() == nil {
-			t.Fatal("expected panic for unknown level")
-		}
+		require.NotNil(t, recover(), "expected panic for unknown level")
 	}()
 	_ = Level(42).String()
 }
@@ -60,16 +58,11 @@ func TestLevel_MarshalJSON_roundTrip(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			b, err := json.Marshal(tc.args.lvl)
-			if err != nil {
-				t.Fatalf("Marshal %v: %v", tc.args.lvl, err)
-			}
+			require.NoError(t, err)
 			var got Level
-			if err := json.Unmarshal(b, &got); err != nil {
-				t.Fatalf("Unmarshal %s: %v", b, err)
-			}
-			if got != tc.expects.want {
-				t.Fatalf("round-trip: got %v want %v", got, tc.expects.want)
-			}
+			err = json.Unmarshal(b, &got)
+			require.NoError(t, err)
+			require.Equal(t, tc.expects.want, got)
 		})
 	}
 }
@@ -94,26 +87,18 @@ func TestLevel_MarshalText_roundTrip(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			b, err := tc.args.lvl.MarshalText()
-			if err != nil {
-				t.Fatalf("MarshalText %v: %v", tc.args.lvl, err)
-			}
+			require.NoError(t, err)
 			var got Level
-			if err := got.UnmarshalText(b); err != nil {
-				t.Fatalf("UnmarshalText %q: %v", b, err)
-			}
-			if got != tc.expects.want {
-				t.Fatalf("round-trip: got %v want %v", got, tc.expects.want)
-			}
+			err = got.UnmarshalText(b)
+			require.NoError(t, err)
+			require.Equal(t, tc.expects.want, got)
 		})
 	}
 }
 
 func TestLevel_UnmarshalText_caseInsensitive(t *testing.T) {
 	var l Level
-	if err := l.UnmarshalText([]byte("info")); err != nil {
-		t.Fatal(err)
-	}
-	if l != LevelInfo {
-		t.Fatalf("got %v", l)
-	}
+	err := l.UnmarshalText([]byte("info"))
+	require.NoError(t, err)
+	require.Equal(t, LevelInfo, l)
 }

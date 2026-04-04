@@ -2,8 +2,9 @@ package golog
 
 import (
 	"context"
-	"slices"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func restoreDefaultLogger(t *testing.T) {
@@ -15,12 +16,9 @@ func restoreDefaultLogger(t *testing.T) {
 
 func TestInitDefaultAndDefault(t *testing.T) {
 	restoreDefaultLogger(t)
-	if err := InitDefault(Config{Format: FormatText, Output: "", Level: LevelDebug}); err != nil {
-		t.Fatal(err)
-	}
-	if got := Default(); got == nil {
-		t.Fatal("Default() returned nil after InitDefault")
-	}
+	err := InitDefault(Config{Format: FormatText, Output: "", Level: LevelDebug})
+	require.NoError(t, err)
+	require.NotNil(t, Default())
 }
 
 func TestTopLevelLevelMethodsDelegateToDefault(t *testing.T) {
@@ -29,19 +27,16 @@ func TestTopLevelLevelMethodsDelegateToDefault(t *testing.T) {
 	defaultLogger = NewLoggerWriter(w, LevelDebug)
 
 	Debug("d")
-	if w.lastLevel != LevelDebug || w.lastMessage != "d" {
-		t.Fatalf("Debug delegated incorrectly: level=%v msg=%q", w.lastLevel, w.lastMessage)
-	}
+	require.Equal(t, LevelDebug, w.lastLevel)
+	require.Equal(t, "d", w.lastMessage)
 
 	Info("i")
-	if w.lastLevel != LevelInfo || w.lastMessage != "i" {
-		t.Fatalf("Info delegated incorrectly: level=%v msg=%q", w.lastLevel, w.lastMessage)
-	}
+	require.Equal(t, LevelInfo, w.lastLevel)
+	require.Equal(t, "i", w.lastMessage)
 
 	Error("e")
-	if w.lastLevel != LevelError || w.lastMessage != "e" {
-		t.Fatalf("Error delegated incorrectly: level=%v msg=%q", w.lastLevel, w.lastMessage)
-	}
+	require.Equal(t, LevelError, w.lastLevel)
+	require.Equal(t, "e", w.lastMessage)
 }
 
 func TestTopLevelWithAndWithErrorAndWithContext(t *testing.T) {
@@ -55,9 +50,7 @@ func TestTopLevelWithAndWithErrorAndWithContext(t *testing.T) {
 	With(String("scope", "s")).WithError(context.Canceled).WithContext(ctx).Info("msg", String("call", "c"))
 
 	want := []string{"scope", "error", "call"}
-	if !slices.Equal(w.lastAttrKeys, want) {
-		t.Fatalf("attr keys: got %v, want %v", w.lastAttrKeys, want)
-	}
+	require.Equal(t, want, w.lastAttrKeys)
 }
 
 func TestSetLevel_packageDefault(t *testing.T) {
@@ -65,28 +58,53 @@ func TestSetLevel_packageDefault(t *testing.T) {
 	w := &testWriter{}
 	defaultLogger = NewLoggerWriter(w, LevelInfo)
 	Debug("skip")
-	if w.writeCount != 0 {
-		t.Fatal("MinLevel Info should skip Debug")
-	}
+	require.Equal(t, 0, w.writeCount)
 	SetLevel(LevelDebug)
 	Debug("x")
-	if w.writeCount != 1 || w.lastLevel != LevelDebug {
-		t.Fatalf("after SetLevel: count=%d level=%v", w.writeCount, w.lastLevel)
-	}
+	require.Equal(t, 1, w.writeCount)
+	require.Equal(t, LevelDebug, w.lastLevel)
 }
 
 func TestInitDefault_discard(t *testing.T) {
 	restoreDefaultLogger(t)
-	if err := InitDefault(Config{Format: FormatText, Output: "", Level: LevelDebug}); err != nil {
-		t.Fatal(err)
-	}
+	err := InitDefault(Config{Format: FormatText, Output: "", Level: LevelDebug})
+	require.NoError(t, err)
 	Info("smoke", String("k", "v"))
 }
 
 func TestInitDefault_invalidFormat(t *testing.T) {
 	restoreDefaultLogger(t)
 	err := InitDefault(Config{Format: "yaml", Output: ""})
-	if err == nil {
-		t.Fatal("want error for unknown format")
-	}
+	require.Error(t, err)
+}
+
+func TestDefault_fallbackWhenLoggerUnset(t *testing.T) {
+	restoreDefaultLogger(t)
+	defaultLogger = nil
+
+	log := Default()
+	require.NotNil(t, log)
+	log.Info("smoke")
+}
+
+func TestTopLevelWithContext(t *testing.T) {
+	restoreDefaultLogger(t)
+	type ctxKey struct{}
+	ctx := context.WithValue(context.Background(), ctxKey{}, "ctx-val")
+
+	w := &testWriter{}
+	defaultLogger = NewLoggerWriter(w, LevelDebug)
+
+	WithContext(ctx).Info("m")
+	require.Equal(t, 1, w.writeCount)
+	require.Equal(t, "m", w.lastMessage)
+}
+
+func TestTopLevelWithError(t *testing.T) {
+	restoreDefaultLogger(t)
+	w := &testWriter{captureAttrs: true}
+	defaultLogger = NewLoggerWriter(w, LevelDebug)
+
+	WithError(context.Canceled).Info("e")
+	require.Contains(t, w.lastAttrKeys, "error")
 }

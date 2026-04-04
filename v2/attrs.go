@@ -76,15 +76,6 @@ func Group(key string, args ...Attr) Attr {
 	return Attr{Key: key, Value: GroupValue(args...)}
 }
 
-// GroupAttrs returns an Attr for a Group [Value]
-// consisting of the given Attrs.
-//
-// GroupAttrs is a more efficient version of [Group]
-// that accepts only [Attr] values.
-func GroupAttrs(key string, attrs ...Attr) Attr {
-	return Attr{Key: key, Value: GroupValue(attrs...)}
-}
-
 // Any returns an Attr for the supplied value.
 // See [AnyValue] for how values are treated.
 func Any(key string, value any) Attr {

@@ -1,15 +1,17 @@
 package golog
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewLogger_unknownFormat(t *testing.T) {
 	_, err := NewLogger(Config{Format: "bad", Output: ""})
-	if err == nil {
-		t.Fatal("want error")
-	}
+	require.Error(t, err)
 }
 
 func TestNewLogger_validConfigs(t *testing.T) {
@@ -40,12 +42,24 @@ func TestNewLogger_validConfigs(t *testing.T) {
 			args: Args{cfg: Config{Format: FormatText, Output: "", Level: LevelDebug, EnableSource: true}},
 			expects: Expects{wantErr: false},
 		},
+		{
+			name: "text-stderr",
+			args: Args{cfg: Config{Format: FormatText, Output: "stderr", Level: LevelDebug}},
+			expects: Expects{wantErr: false},
+		},
+		{
+			name: "source-field-without-enable-source",
+			args: Args{cfg: Config{Format: FormatText, Output: "", Level: LevelDebug, SourceFieldName: "src"}},
+			expects: Expects{wantErr: false},
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := NewLogger(tc.args.cfg)
-			if (err != nil) != tc.expects.wantErr {
-				t.Fatalf("err=%v wantErr=%v", err, tc.expects.wantErr)
+			if tc.expects.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -53,40 +67,47 @@ func TestNewLogger_validConfigs(t *testing.T) {
 
 func TestDevelopmentConfig(t *testing.T) {
 	cfg := DevelopmentConfig()
-	if cfg.Format != FormatText || cfg.Level != LevelDebug || cfg.TimeFormat != time.ANSIC {
-		t.Fatalf("DevelopmentConfig: %#v", cfg)
-	}
-	if !cfg.EnableSource || cfg.SourceFieldName != "caller" || cfg.SourceFieldFormat != SourceFormatFileLine || cfg.SourceSkipFrames != 2 {
-		t.Fatalf("DevelopmentConfig source: %#v", cfg)
-	}
+	require.Equal(t, FormatText, cfg.Format)
+	require.Equal(t, LevelDebug, cfg.Level)
+	require.Equal(t, time.ANSIC, cfg.TimeFormat)
+	require.True(t, cfg.EnableSource)
+	require.Equal(t, "caller", cfg.SourceFieldName)
+	require.Equal(t, SourceFormatFileLine, cfg.SourceFieldFormat)
+	require.Equal(t, 2, cfg.SourceSkipFrames)
 }
 
 func TestProductionConfig(t *testing.T) {
 	cfg := ProductionConfig()
-	if cfg.Format != FormatJSON || cfg.Level != LevelInfo || cfg.TimeFormat != time.RFC3339Nano {
-		t.Fatalf("ProductionConfig: %#v", cfg)
-	}
-	if cfg.DurationFormat != DurationFormatSeconds {
-		t.Fatalf("ProductionConfig DurationFormat: got %q", cfg.DurationFormat)
-	}
+	require.Equal(t, FormatJSON, cfg.Format)
+	require.Equal(t, LevelInfo, cfg.Level)
+	require.Equal(t, time.RFC3339Nano, cfg.TimeFormat)
+	require.Equal(t, DurationFormatSeconds, cfg.DurationFormat)
 }
 
 func TestNewDevelopmentLogger(t *testing.T) {
 	log, err := NewDevelopmentLogger()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if log == nil {
-		t.Fatal("nil logger")
-	}
+	require.NoError(t, err)
+	require.NotNil(t, log)
 }
 
 func TestNewProductionLogger(t *testing.T) {
 	log, err := NewProductionLogger()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if log == nil {
-		t.Fatal("nil logger")
-	}
+	require.NoError(t, err)
+	require.NotNil(t, log)
+}
+
+func TestNewLogger_appendFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "app.log")
+	log, err := NewLogger(Config{Format: FormatText, Output: path, Level: LevelDebug})
+	require.NoError(t, err)
+	require.NotNil(t, log)
+	log.Info("line")
+	_, err = os.Stat(path)
+	require.NoError(t, err)
+}
+
+func TestNewLogger_nilEnricherSkipped(t *testing.T) {
+	log, err := NewLogger(Config{Format: FormatText, Output: "", Level: LevelDebug}, nil)
+	require.NoError(t, err)
+	require.NotNil(t, log)
 }

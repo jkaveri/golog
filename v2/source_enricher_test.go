@@ -2,8 +2,9 @@ package golog
 
 import (
 	"context"
-	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func sourceAttrForTest(opts SourceEnricherOptions) (Attr, bool) {
@@ -13,77 +14,50 @@ func sourceAttrForTest(opts SourceEnricherOptions) (Attr, bool) {
 
 func TestSourceEnricher_defaultFieldName(t *testing.T) {
 	attr, ok := sourceAttrForTest(SourceEnricherOptions{})
-	if !ok {
-		t.Fatal("want source attr")
-	}
-	if attr.Key != "source" {
-		t.Fatalf("want key source, got %q", attr.Key)
-	}
+	require.True(t, ok, "want source attr")
+	require.Equal(t, "source", attr.Key)
 }
 
 func TestSourceEnricher_functionFileLineFormat(t *testing.T) {
 	attr, ok := sourceAttrForTest(SourceEnricherOptions{})
-	if !ok {
-		t.Fatal("want source attr")
-	}
+	require.True(t, ok, "want source attr")
 	s := attr.Value.String()
-	if !strings.Contains(s, " ") {
-		t.Fatalf("want function and file separator, got %q", s)
-	}
-	if !strings.Contains(s, ".go:") {
-		t.Fatalf("want file:line in source, got %q", s)
-	}
+	require.Contains(t, s, " ")
+	require.Contains(t, s, ".go:")
 }
 
 func TestSourceEnricher_fileLineOnlyFormat(t *testing.T) {
 	attr, ok := sourceAttrForTest(SourceEnricherOptions{Format: SourceFormatFileLine})
-	if !ok {
-		t.Fatal("want source attr")
-	}
+	require.True(t, ok, "want source attr")
 	s := attr.Value.String()
-	if strings.Contains(s, " ") {
-		t.Fatalf("want file:line only, no function prefix, got %q", s)
-	}
-	if !strings.Contains(s, ".go:") {
-		t.Fatalf("want basename:line, got %q", s)
-	}
+	require.NotContains(t, s, " ")
+	require.Contains(t, s, ".go:")
 }
 
 func TestSourceEnricher_customFieldName(t *testing.T) {
 	attr, ok := sourceAttrForTest(SourceEnricherOptions{FieldName: "caller"})
-	if !ok {
-		t.Fatal("want source attr")
-	}
-	if attr.Key != "caller" {
-		t.Fatalf("want key caller, got %q", attr.Key)
-	}
+	require.True(t, ok, "want source attr")
+	require.Equal(t, "caller", attr.Key)
 }
 
 func TestSourceEnricher_skipChangesFrame(t *testing.T) {
 	a1, ok1 := sourceAttrForTest(SourceEnricherOptions{})
 	a2, ok2 := sourceAttrForTest(SourceEnricherOptions{Skip: 1})
-	if !ok1 {
-		t.Fatalf("want base attr")
-	}
+	require.True(t, ok1, "want base attr")
 	if !ok2 {
 		t.Skip("shifted frame not available on this runtime stack")
 	}
-	if a1.Value.String() == a2.Value.String() {
-		t.Fatalf("want different source values with skip change, both=%q", a1.Value.String())
-	}
+	require.NotEqual(t, a1.Value.String(), a2.Value.String(), "want different source values with skip change")
 }
 
 func TestSourceEnricher_deepSkipReturnsNoAttr(t *testing.T) {
-	if _, ok := sourceAttrForTest(SourceEnricherOptions{Skip: 1 << 20}); ok {
-		t.Fatal("want no attr for deep skip")
-	}
+	_, ok := sourceAttrForTest(SourceEnricherOptions{Skip: 1 << 20})
+	require.False(t, ok, "want no attr for deep skip")
 }
 
 func TestNewSourceEnricher_returnsEnricher(t *testing.T) {
 	e := NewSourceEnricher(SourceEnricherOptions{})
-	if e == nil {
-		t.Fatal("want non-nil enricher")
-	}
+	require.NotNil(t, e)
 }
 
 type captureWriter struct {
@@ -111,7 +85,5 @@ func TestSourceEnricher_integrationWithLogger(t *testing.T) {
 			break
 		}
 	}
-	if !found {
-		t.Fatalf("source attr not found: %#v", w.attrs)
-	}
+	require.True(t, found, "source attr not found: %#v", w.attrs)
 }

@@ -115,44 +115,45 @@ if err := golog.InitDefault(golog.Config{
           v
 +-------------------+
 | Logger.log(...)   |
-| - level/message   |
-| - attrs from With |
+| level, message,   |
+| call-site attrs   |
 +---------+---------+
           |
+          v
+     +----+----+
+     | writer  |
+     | == nil? |----yes----> (return: no Record, no Write)
+     +----+----+
+          | no
+          v
+     +----+----+
+     | level < |
+     | minLevel|?----yes----> (return: no Record, no Write)
+     +----+----+
+          | no
           v
 +-------------------+
 | Build Record      |
 | Time, Level, Msg  |
+| merge With attrs  |
 | + call-site attrs |
+| + enrichers 0..N  |
+|   (RecordBuilder) |
 +---------+---------+
           |
           v
 +-------------------+
-| Enrichers (0..N)  |
-| Enrich(ctx,rec)   |
-| append attrs      |
-+---------+---------+
+| writer.Write(ctx, |
+| record)           |
+| TextWriter / JSON |
++-------------------+
           |
           v
-+-------------------+      no (level < MinLevel)
-| Logger.log        +--------------------+
-| or Writer == nil  |                    |
-+---------+---------+                    |
-          |                              |
-          | yes                          |
-          v                              |
-+-------------------+                    |
-| writer.Write(...) |                    |
-| TextWriter format |                    |
-| attrs + newline   |                    |
-+---------+---------+                    |
-          |                              |
-          v                              |
-+-------------------+                    |
-| Output            |                    |
-| io.Writer         |                    |
-| stdout/file/etc   |                    |
-+-------------------+                    |
++-------------------+
+| Output            |
+| io.Writer         |
+| stdout / file / … |
++-------------------+
 ```
 
 ## Group Attribute Prefixing

@@ -146,7 +146,7 @@ func (j *JSONWriter) Write(ctx context.Context, record Record) error {
 	return err
 }
 
-func (_ *JSONWriter) isReservedJSONKey(key string) bool {
+func (*JSONWriter) isReservedJSONKey(key string) bool {
 	return key == "time" || key == "level" || key == "msg"
 }
 
@@ -174,7 +174,7 @@ func (j *JSONWriter) appendKVTime(
 	*buf = append(*buf, '"')
 }
 
-func (_ *JSONWriter) appendKey(buf *buffer.Buffer, first *bool, key string) {
+func (*JSONWriter) appendKey(buf *buffer.Buffer, first *bool, key string) {
 	if !*first {
 		*buf = append(*buf, ',')
 	}

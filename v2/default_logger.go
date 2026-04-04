@@ -26,11 +26,13 @@ func init() {
 // different minimum level than the default
 // installed at startup.
 //
+// Optional enrichers are applied like [NewLogger]; see [Enricher] for details.
+//
 // It returns an error if [Config] cannot be applied (for example an invalid
 // [Config.Format]
 // or an unopenable log file path).
-func InitDefault(cfg Config) error {
-	l, err := NewLogger(cfg)
+func InitDefault(cfg Config, enrichers ...Enricher) error {
+	l, err := NewLogger(cfg, enrichers...)
 	if err != nil {
 		return err
 	}
